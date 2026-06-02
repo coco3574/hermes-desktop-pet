@@ -1,5 +1,6 @@
 """Hermes Desktop Pet — 桌面宠物聊天应用入口"""
 
+import os
 import sys
 import logging
 
@@ -181,8 +182,10 @@ def main():
         # 截断过长文本（避免生成太慢）
         if len(text) > 500:
             text = text[:500] + "..."
+        logger.info("TTS: 开始播报，文本长度=%d", len(text))
         _tts_worker = TTSSpeaker(text)
-        _tts_worker.error.connect(lambda e: logger.warning("TTS: %s", e))
+        _tts_worker.finished.connect(lambda: logger.info("TTS: 播报完成"))
+        _tts_worker.error.connect(lambda e: logger.warning("TTS 错误: %s", e))
         _tts_worker.start()
 
     # ── 语音输入（麦克风） ──
@@ -208,7 +211,23 @@ def main():
 
     chat.message_sent.connect(on_message_sent)
 
-    # ── 显示 ──
+    # ── 重启功能 ──
+
+    def on_restart():
+        """重启应用。"""
+        import subprocess
+        logger.info("重启应用...")
+        # 获取当前脚本路径
+        script_path = os.path.abspath(sys.argv[0])
+        # 启动新进程
+        subprocess.Popen([sys.executable, script_path])
+        # 退出当前进程
+        app.quit()
+
+    chat.restart_clicked.connect(on_restart)
+    tray.restart_clicked.connect(on_restart)
+
+    # ── 昀示 ──
     pet.show()
     tray.show()
 

@@ -4,6 +4,24 @@
 """
 
 import os
+from pathlib import Path
+
+# 加载 .env 文件
+def _load_dotenv():
+    """从项目根目录加载 .env 文件"""
+    env_file = Path(__file__).parent.parent / ".env"
+    if env_file.exists():
+        with open(env_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    if key and key not in os.environ:
+                        os.environ[key] = value
+
+_load_dotenv()
 
 # === API 配置 ===
 # Hermes API Server 地址（需要先启动 Hermes Gateway）
@@ -65,17 +83,19 @@ MAX_HISTORY_LENGTH: int = int(os.environ.get("MAX_HISTORY_LENGTH", "50"))
 
 # === 语音配置 ===
 # TTS 提供商: "edge-tts" | "xiaomi" | "openai"
-TTS_PROVIDER: str = os.environ.get("TTS_PROVIDER", "edge-tts")
-TTS_VOICE: str = os.environ.get("TTS_VOICE", "zh-CN-XiaoxiaoNeural")
+TTS_PROVIDER: str = os.environ.get("TTS_PROVIDER", "xiaomi")
+TTS_MODEL: str = os.environ.get("TTS_MODEL", "")  # TTS 模型名称（xiaomi/openai 用）
+TTS_VOICE: str = os.environ.get("TTS_VOICE", "Chloe")
 
 # STT 提供商: "google" | "xiaomi" | "openai"
 STT_PROVIDER: str = os.environ.get("STT_PROVIDER", "google")
 
 # 小米语音 API
-XIAOMI_API_KEY: str = os.environ.get("XIAOMI_API_KEY", "")
-XIAOMI_TTS_ENDPOINT: str = "https://token-plan-cn.xiaomimimo.com/v1/audio/speech"
-XIAOMI_TTS_MODEL: str = "tts-1"
-XIAOMI_STT_ENDPOINT: str = "https://token-plan-cn.xiaomimimo.com/v1/audio/transcriptions"
+XIAOMI_API_KEY: str = os.environ.get("XIAOMI_API_KEY", os.environ.get("MIMO_API_KEY", ""))
+XIAOMI_BASE_URL: str = os.environ.get("XIAOMI_BASE_URL", "https://api.xiaomimimo.com/v1")
+XIAOMI_TTS_MODEL: str = os.environ.get("XIAOMI_TTS_MODEL", "mimo-v2.5-tts")
+XIAOMI_TTS_VOICE: str = os.environ.get("XIAOMI_TTS_VOICE", "Chloe")
+XIAOMI_STT_ENDPOINT: str = "https://api.xiaomimimo.com/v1/audio/transcriptions"
 XIAOMI_STT_MODEL: str = "whisper-1"
 
 # OpenAI 语音 API

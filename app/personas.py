@@ -32,6 +32,7 @@ class Persona:
     greetings: list = None     # 问候语列表
     # 语音配置
     tts_provider: str = ""     # TTS 提供商（edge-tts, xiaomi, openai），空则用全局配置
+    tts_model: str = ""        # TTS 模型名称（如 tts-1），空则用全局配置
     tts_voice: str = ""        # 音色名称，空则用全局配置
     tts_api_key: str = ""      # TTS API Key（可选，覆盖全局）
     tts_endpoint: str = ""     # TTS API 端点（可选，覆盖全局）

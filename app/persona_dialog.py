@@ -56,14 +56,49 @@ class PersonaDialog(QDialog):
             self._fill_data()
     
     def _on_tts_provider_changed(self, text: str):
-        """TTS 提供商改变时更新音色占位符"""
-        placeholders = {
-            "(使用全局配置)": "如: zh-CN-XiaoxiaoNeural (edge-tts) 或 alloy (openai)",
-            "edge-tts": "zh-CN-XiaoxiaoNeural, zh-CN-YunxiNeural, zh-CN-YunyangNeural",
-            "xiaomi": "tts-1",
-            "openai": "alloy, echo, fable, onyx, nova, shimmer",
+        """TTS 提供商改变时更新音色选项"""
+        self._update_voice_options(text)
+        # 更新模型输入框的占位符提示
+        if text == "edge-tts":
+            self.tts_model_input.setPlaceholderText("edge-tts 无需模型名称，留空即可")
+        elif text == "xiaomi":
+            self.tts_model_input.setPlaceholderText("如: tts-1")
+        elif text == "openai":
+            self.tts_model_input.setPlaceholderText("如: tts-1, tts-1-hd")
+        else:
+            self.tts_model_input.setPlaceholderText("如: tts-1（xiaomi/openai 专用，edge-tts 留空）")
+
+    def _update_voice_options(self, provider: str):
+        """根据 TTS 提供商更新音色下拉框选项"""
+        self.tts_voice_combo.clear()
+        voice_options = {
+            "(使用全局配置)": [],
+            "edge-tts": [
+                "zh-CN-XiaoxiaoNeural",
+                "zh-CN-YunxiNeural",
+                "zh-CN-YunyangNeural",
+                "zh-CN-XiaoyiNeural",
+                "zh-CN-XiaohanNeural",
+                "en-US-AriaNeural",
+                "en-US-GuyNeural",
+            ],
+            "xiaomi": [
+                "Chloe",
+                "alloy",
+                "echo",
+                "fable",
+                "onyx",
+                "nova",
+                "shimmer",
+            ],
+            "openai": ["alloy", "echo", "fable", "onyx", "nova", "shimmer"],
         }
-        self.tts_voice_input.setPlaceholderText(placeholders.get(text, ""))
+        options = voice_options.get(provider, [])
+        if options:
+            self.tts_voice_combo.addItems(options)
+        else:
+            # "(使用全局配置)" 或未知提供商，允许手动输入
+            self.tts_voice_combo.setPlaceholderText("输入音色名称或留空使用全局配置")
     
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -159,24 +194,30 @@ class PersonaDialog(QDialog):
         voice_label = QLabel("🎤 语音配置")
         voice_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;")
         form.addRow(voice_label)
-        
+
         # TTS 提供商
         self.tts_provider_combo = QComboBox()
         self.tts_provider_combo.addItems(["(使用全局配置)", "edge-tts", "xiaomi", "openai"])
         self.tts_provider_combo.currentTextChanged.connect(self._on_tts_provider_changed)
         form.addRow("TTS 提供商:", self.tts_provider_combo)
-        
-        # 音色
-        self.tts_voice_input = QLineEdit()
-        self.tts_voice_input.setPlaceholderText("如: zh-CN-XiaoxiaoNeural (edge-tts) 或 alloy (openai)")
-        form.addRow("音色:", self.tts_voice_input)
-        
+
+        # TTS 模型名称（xiaomi/openai 用）
+        self.tts_model_input = QLineEdit()
+        self.tts_model_input.setPlaceholderText("如: tts-1（xiaomi/openai 专用，edge-tts 留空）")
+        form.addRow("TTS 模型:", self.tts_model_input)
+
+        # 音色（下拉框）
+        self.tts_voice_combo = QComboBox()
+        self.tts_voice_combo.setEditable(True)  # 允许手动输入自定义音色
+        self._update_voice_options("(使用全局配置)")
+        form.addRow("音色:", self.tts_voice_combo)
+
         # TTS API Key
         self.tts_api_key_input = QLineEdit()
         self.tts_api_key_input.setPlaceholderText("可选，覆盖全局 API Key")
         self.tts_api_key_input.setEchoMode(QLineEdit.Password)
         form.addRow("TTS API Key:", self.tts_api_key_input)
-        
+
         # TTS 端点
         self.tts_endpoint_input = QLineEdit()
         self.tts_endpoint_input.setPlaceholderText("可选，如: https://api.openai.com/v1/audio/speech")
@@ -236,7 +277,14 @@ class PersonaDialog(QDialog):
             index = self.tts_provider_combo.findText(self.persona.tts_provider)
             if index >= 0:
                 self.tts_provider_combo.setCurrentIndex(index)
-        self.tts_voice_input.setText(self.persona.tts_voice)
+        self.tts_model_input.setText(self.persona.tts_model)
+        # 设置音色下拉框的值
+        if self.persona.tts_voice:
+            index = self.tts_voice_combo.findText(self.persona.tts_voice)
+            if index >= 0:
+                self.tts_voice_combo.setCurrentIndex(index)
+            else:
+                self.tts_voice_combo.setEditText(self.persona.tts_voice)
         self.tts_api_key_input.setText(self.persona.tts_api_key)
         self.tts_endpoint_input.setText(self.persona.tts_endpoint)
     
@@ -290,7 +338,7 @@ class PersonaDialog(QDialog):
         tts_provider = self.tts_provider_combo.currentText()
         if tts_provider == "(使用全局配置)":
             tts_provider = ""
-        
+
         persona = Persona(
             id=id_text,
             name=name_text,
@@ -302,7 +350,8 @@ class PersonaDialog(QDialog):
             theme_color=self.color_input.text().strip() or "#B088C0",
             description=self.desc_input.text().strip(),
             tts_provider=tts_provider,
-            tts_voice=self.tts_voice_input.text().strip(),
+            tts_model=self.tts_model_input.text().strip(),
+            tts_voice=self.tts_voice_combo.currentText().strip(),
             tts_api_key=self.tts_api_key_input.text().strip(),
             tts_endpoint=self.tts_endpoint_input.text().strip(),
         )

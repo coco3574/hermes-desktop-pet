@@ -31,6 +31,7 @@ class TrayIcon(QSystemTrayIcon):
     """系统托盘图标。"""
 
     show_pet_clicked = pyqtSignal()   # 显示小赫
+    restart_clicked = pyqtSignal()    # 重启应用
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -70,6 +71,11 @@ class TrayIcon(QSystemTrayIcon):
         self._menu.addAction(self._toggle_action)
 
         self._menu.addSeparator()
+
+        # 重启
+        self._restart_action = QAction("重启", self)
+        self._restart_action.triggered.connect(self.restart_clicked.emit)
+        self._menu.addAction(self._restart_action)
 
         # 退出
         self._quit_action = QAction("退出", self)

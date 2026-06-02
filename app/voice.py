@@ -38,17 +38,17 @@ class TTSSpeaker(QThread):
     finished = pyqtSignal()
     error = pyqtSignal(str)
 
-    def __init__(self, text: str, provider: str = None, voice: str = None, 
-                 api_key: str = None, endpoint: str = None, parent=None):
+    def __init__(self, text: str, provider: str = None, model: str = None,
+                 voice: str = None, api_key: str = None, endpoint: str = None, parent=None):
         super().__init__(parent)
         self.text = text
         # 延迟导入 config，避免循环引用
         from . import config
         from .personas import persona_manager
-        
+
         # 获取当前人格的语音配置
         current_persona = persona_manager.get_current()
-        
+
         # 优先级：参数 > 人格配置 > 全局配置
         if provider:
             self.provider = provider
@@ -56,14 +56,22 @@ class TTSSpeaker(QThread):
             self.provider = current_persona.tts_provider
         else:
             self.provider = config.TTS_PROVIDER
-        
+
+        # TTS 模型名称（xiaomi/openai 用）
+        if model:
+            self.model = model
+        elif current_persona and current_persona.tts_model:
+            self.model = current_persona.tts_model
+        else:
+            self.model = config.TTS_MODEL
+
         if voice:
             self.voice = voice
         elif current_persona and current_persona.tts_voice:
             self.voice = current_persona.tts_voice
         else:
             self.voice = config.TTS_VOICE
-        
+
         # API Key 和端点（用于 xiaomi 和 openai）
         if api_key:
             self.api_key = api_key
@@ -77,7 +85,7 @@ class TTSSpeaker(QThread):
                 self.api_key = config.OPENAI_API_KEY
             else:
                 self.api_key = ""
-        
+
         if endpoint:
             self.endpoint = endpoint
         elif current_persona and current_persona.tts_endpoint:
@@ -85,7 +93,7 @@ class TTSSpeaker(QThread):
         else:
             # 根据 provider 选择默认端点
             if self.provider == "xiaomi":
-                self.endpoint = config.XIAOMI_TTS_ENDPOINT
+                self.endpoint = config.XIAOMI_BASE_URL
             elif self.provider == "openai":
                 self.endpoint = "https://api.openai.com/v1/audio/speech"
             else:
@@ -93,7 +101,11 @@ class TTSSpeaker(QThread):
 
     def run(self):
         try:
-            audio_path = AUDIO_CACHE / "reply.mp3"
+            # 根据 provider 选择文件格式
+            if self.provider == "xiaomi":
+                audio_path = AUDIO_CACHE / "reply.wav"
+            else:
+                audio_path = AUDIO_CACHE / "reply.mp3"
 
             if self.provider == "edge-tts":
                 self._generate_edge_tts(audio_path)
@@ -124,24 +136,39 @@ class TTSSpeaker(QThread):
         asyncio.run(_gen())
 
     def _generate_xiaomi_tts(self, path: Path):
-        """小米 TTS — 通过 OpenAI 兼容接口调用。"""
+        """小米 TTS — 通过 chat.completions 接口调用。"""
         import httpx
+        import base64
 
+        # 小米 TTS 格式：user 是风格描述，assistant 是要朗读的内容
+        style_prompt = "请用自然、亲切的语气朗读。"
+        
         resp = httpx.post(
-            self.endpoint,
+            f"{self.endpoint}/chat/completions",
             headers={
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
             },
             json={
-                "model": self.voice,
-                "input": self.text,
-                "voice": "alloy",
+                "model": self.model or "mimo-v2.5-tts",
+                "messages": [
+                    {"role": "user", "content": style_prompt},
+                    {"role": "assistant", "content": self.text}
+                ],
+                "audio": {
+                    "format": "wav",
+                    "voice": self.voice or "Chloe"
+                }
             },
             timeout=30,
         )
         resp.raise_for_status()
-        path.write_bytes(resp.content)
+        data = resp.json()
+        
+        # 解析音频数据
+        audio_data = data["choices"][0]["message"]["audio"]["data"]
+        audio_bytes = base64.b64decode(audio_data)
+        path.write_bytes(audio_bytes)
 
     def _generate_openai_tts(self, path: Path):
         """OpenAI TTS。"""
@@ -154,7 +181,7 @@ class TTSSpeaker(QThread):
                 "Content-Type": "application/json",
             },
             json={
-                "model": "tts-1",
+                "model": self.model or "tts-1",
                 "input": self.text,
                 "voice": self.voice or "alloy",
             },
@@ -165,29 +192,39 @@ class TTSSpeaker(QThread):
 
     def _play_audio(self, path: Path):
         """播放音频文件。"""
+        logger.info("TTS: 播放音频 %s", path)
         if os.name == "nt":
-            # 使用 Windows MCI 命令播放音频，无需 PowerShell
-            ps_cmd = (
-                f'Add-Type -AssemblyName presentationCore;'
-                f'$player = New-Object System.Windows.Media.MediaPlayer;'
-                f'$player.Open([uri]"{path}");'
-                f'$player.Play();'
-                f'Start-Sleep -Seconds 1;'
-                f'while ($player.NaturalDuration.HasTimeSpan -eq $false) {{ Start-Sleep -Milliseconds 100 }};'
-                f'$dur = $player.NaturalDuration.TimeSpan.TotalSeconds;'
-                f'Start-Sleep -Seconds ($dur + 0.5);'
-                f'$player.Close()'
-            )
-            # 隐藏 PowerShell 窗口
+            # 使用 PowerShell 后台播放，无弹窗
+            logger.info("TTS: 后台播放...")
+            win_path = str(path).replace("/", "\\")
+            ps_script = f'''
+            Add-Type -AssemblyName presentationCore
+            $player = New-Object System.Windows.Media.MediaPlayer
+            $player.Open([System.Uri]::new("{win_path}"))
+            $player.Play()
+            Start-Sleep -Milliseconds 500
+            while ($player.Position -lt $player.NaturalDuration.TimeSpan) {{
+                Start-Sleep -Milliseconds 100
+            }}
+            $player.Close()
+            '''
+            
+            # 保存到临时 ps1 文件
+            ps_file = path.parent / "play.ps1"
+            ps_file.write_text(ps_script, encoding="utf-8")
+            
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = 0  # SW_HIDE
-            subprocess.run(
-                ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_cmd],
-                capture_output=True,
-                timeout=60,
+            
+            subprocess.Popen(
+                ["powershell", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", str(ps_file)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 startupinfo=startupinfo,
+                creationflags=subprocess.CREATE_NO_WINDOW
             )
+            logger.info("TTS: 播放进程已启动")
         else:
             for player in ["mpv", "ffplay", "aplay"]:
                 try:

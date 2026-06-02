@@ -90,10 +90,11 @@ class StreamingLabel(QLabel):
 
 class ChatBubble(QWidget):
     """聊天气泡窗口，支持文字复制和手动缩放。"""
-    # 信号：用户发送了消息 / 语音输入 / 语音开关
+    # 信号：用户发送了消息 / 语音输入 / 语音开关 / 重启
     message_sent = pyqtSignal(str)
     mic_clicked = pyqtSignal()        # 麦克风按钮点击
     voice_toggled = pyqtSignal(bool)  # 语音播报开关
+    restart_clicked = pyqtSignal()    # 重启按钮点击
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -116,7 +117,14 @@ class ChatBubble(QWidget):
         self._resize_start_geo = None
         self._hover_edge = None  # 悬停的边缘
 
+        # 记录初始尺寸用于计算缩放比例
+        self._base_width = config.CHAT_WIDTH
+        self._base_height = config.CHAT_HEIGHT
+        self._base_font_size = config.FONT_SIZE_CHAT
+        self._base_input_font_size = config.FONT_SIZE_INPUT
+
         self._streaming_label: StreamingLabel | None = None
+        self._message_labels: list[MessageLabel] = []  # 追踪所有消息标签
         self._setup_ui()
 
     def _setup_ui(self):
@@ -150,6 +158,21 @@ class ChatBubble(QWidget):
         title_label.setStyleSheet(f"color: {config.COLOR_TEXT}; border: none; background: transparent;")
         title_layout.addWidget(title_label)
         title_layout.addStretch()
+
+        # 重启按钮
+        restart_btn = QPushButton("🔄")
+        restart_btn.setFixedSize(28, 28)
+        restart_btn.setCursor(Qt.PointingHandCursor)
+        restart_btn.setToolTip("重启应用")
+        restart_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent; border: none;
+                font-size: 14px; color: #999; border-radius: 14px;
+            }
+            QPushButton:hover { background-color: #E8DEF8; color: #666; }
+        """)
+        restart_btn.clicked.connect(self._on_restart)
+        title_layout.addWidget(restart_btn)
 
         close_btn = QPushButton("✕")
         close_btn.setFixedSize(28, 28)
@@ -388,6 +411,57 @@ class ChatBubble(QWidget):
             h = new_h
 
         self.setGeometry(x, y, w, h)
+        
+        # 根据窗口大小调整字体
+        self._update_fonts_on_resize(w, h)
+
+    def _update_fonts_on_resize(self, width: int, height: int):
+        """根据窗口大小动态调整字体。"""
+        # 计算缩放比例（基于宽度）
+        scale = width / self._base_width
+        scale = max(0.6, min(scale, 2.0))  # 限制缩放范围
+        
+        # 计算新字体大小
+        new_chat_font_size = max(10, int(self._base_font_size * scale))
+        new_input_font_size = max(10, int(self._base_input_font_size * scale))
+        
+        # 更新消息标签的样式
+        msg_style = f"""
+            QLabel {{
+                background-color: {config.COLOR_HERMES_MSG};
+                color: {config.COLOR_TEXT};
+                border-radius: 12px;
+                padding: 8px 12px;
+                font-family: {config.FONT_FAMILY};
+                font-size: {new_chat_font_size}px;
+                selection-background-color: #C8A8E8;
+            }}
+        """
+        user_style = f"""
+            QLabel {{
+                background-color: {config.COLOR_USER_MSG};
+                color: {config.COLOR_TEXT};
+                border-radius: 12px;
+                padding: 8px 12px;
+                font-family: {config.FONT_FAMILY};
+                font-size: {new_chat_font_size}px;
+                selection-background-color: #C8A8E8;
+            }}
+        """
+        
+        for label in self._message_labels:
+            if hasattr(label, 'is_user') and label.is_user:
+                label.setStyleSheet(user_style)
+            else:
+                label.setStyleSheet(msg_style)
+        
+        # 更新流式标签的样式
+        if self._streaming_label:
+            self._streaming_label.setStyleSheet(msg_style)
+        
+        # 更新输入框和按钮的字体
+        self._input.setFont(QFont(config.FONT_FAMILY, new_input_font_size))
+        self._send_btn.setFont(QFont(config.FONT_FAMILY, new_input_font_size, QFont.Bold))
 
     # ── 其他逻辑 ──
 
@@ -433,6 +507,17 @@ class ChatBubble(QWidget):
         self._voice_btn.setToolTip("语音播报: " + ("开" if enabled else "关"))
         self.voice_toggled.emit(enabled)
 
+    def _on_restart(self):
+        """重启按钮点击。"""
+        from PyQt5.QtWidgets import QMessageBox
+        reply = QMessageBox.question(
+            self, "确认重启",
+            "确定要重启应用吗？",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            self.restart_clicked.emit()
+
     def voice_enabled(self) -> bool:
         return self._voice_btn.isChecked()
 
@@ -449,6 +534,7 @@ class ChatBubble(QWidget):
 
         label = MessageLabel(text, is_user=True)
         label.setMaximumWidth(260)
+        self._message_labels.append(label)  # 追踪标签
         w_layout.addWidget(label)
         w_layout.addStretch()
 
@@ -493,6 +579,7 @@ class ChatBubble(QWidget):
         if self._streaming_label:
             self._streaming_label.finish()
             reply_text = self._streaming_label.get_full_text()
+            self._message_labels.append(self._streaming_label)  # 追踪标签
             self._streaming_label = None
             return reply_text
         return ""
@@ -567,8 +654,9 @@ class ChatBubble(QWidget):
             if widget:
                 widget.deleteLater()
         
-        # 重置流式标签
+        # 重置流式标签和追踪列表
         self._streaming_label = None
+        self._message_labels.clear()
         
         # 重新添加欢迎消息
         self._add_welcome_message()
