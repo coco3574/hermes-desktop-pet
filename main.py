@@ -93,6 +93,31 @@ def main():
     pet._on_click = on_pet_click
     pet._toggle_chat = on_pet_click
     pet._hide_all = on_hide_all
+    
+    # ── 会话管理回调 ──
+    
+    pet._chat_mgr = chat_mgr
+    
+    def on_new_session():
+        """新建会话"""
+        chat_mgr.create_new_session()
+        chat.clear_messages()
+    
+    def on_load_session():
+        """加载会话后刷新聊天显示"""
+        # 清空并重新显示消息
+        chat.clear_messages()
+        messages = chat_mgr.messages
+        for msg in messages:
+            if msg.get("role") == "user":
+                chat.add_user_message(msg.get("content", ""))
+            elif msg.get("role") == "assistant":
+                chat.start_hermes_message()
+                chat._streaming_label.append_text(msg.get("content", ""))
+                chat._streaming_label.finish()
+    
+    pet._clear_chat_callback = on_new_session
+    pet._refresh_chat_callback = on_load_session
 
     # ── 聊天窗口 toggle 时启动/停止位置追踪 ──
 

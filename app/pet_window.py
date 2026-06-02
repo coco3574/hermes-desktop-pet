@@ -410,6 +410,37 @@ class PetWindow(QWidget):
 
         menu.addSeparator()
 
+        # 会话管理
+        from .sessions import session_manager
+        session_menu = menu.addMenu("💬  会话管理")
+        
+        # 新建会话
+        new_session_action = QAction("📝  新建会话", self)
+        new_session_action.triggered.connect(self._on_new_session)
+        session_menu.addAction(new_session_action)
+        
+        session_menu.addSeparator()
+        
+        # 会话列表
+        sessions = session_manager.get_all_sessions()
+        if sessions:
+            current_session = session_manager.get_current()
+            for session in sessions[:10]:  # 最多显示 10 个
+                # 格式化时间
+                import time
+                time_str = time.strftime("%m-%d %H:%M", time.localtime(session.updated_at))
+                action = QAction(f"📌 {session.name[:20]}... ({time_str})", self)
+                action.setCheckable(True)
+                action.setChecked(current_session and session.id == current_session.id)
+                action.triggered.connect(lambda checked, sid=session.id: self._on_load_session(sid))
+                session_menu.addAction(action)
+        else:
+            no_session_action = QAction("暂无历史会话", self)
+            no_session_action.setEnabled(False)
+            session_menu.addAction(no_session_action)
+
+        menu.addSeparator()
+
         # 设置
         settings_action = QAction("⚙️  设置", self)
         settings_action.triggered.connect(self._open_persona_manager)
@@ -433,6 +464,22 @@ class PetWindow(QWidget):
         from .persona_dialog import PersonaListDialog
         dialog = PersonaListDialog(self)
         dialog.exec_()
+    
+    def _on_new_session(self):
+        """新建会话"""
+        if hasattr(self, '_chat_mgr'):
+            self._chat_mgr.create_new_session()
+            # 通知聊天窗口清空消息
+            if hasattr(self, '_clear_chat_callback'):
+                self._clear_chat_callback()
+    
+    def _on_load_session(self, session_id: str):
+        """加载指定会话"""
+        if hasattr(self, '_chat_mgr'):
+            if self._chat_mgr.load_session(session_id):
+                # 通知聊天窗口刷新消息
+                if hasattr(self, '_refresh_chat_callback'):
+                    self._refresh_chat_callback()
 
     # ── 绘制 ──
 

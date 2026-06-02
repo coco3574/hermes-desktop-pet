@@ -9,6 +9,7 @@ from PyQt5.QtCore import QThread, pyqtSignal
 
 from . import config
 from .personas import persona_manager
+from .sessions import session_manager
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +152,30 @@ class ChatManager:
 
     def append_assistant_reply(self, reply: str):
         self.messages.append({"role": "assistant", "content": reply})
+        # 自动保存会话
+        session_manager.save_current(self.messages)
 
     def clear_history(self):
         self._init_system_prompt()
+        session_manager.clear_current()
+    
+    def create_new_session(self):
+        """创建新会话"""
+        self._init_system_prompt()
+        current_persona = persona_manager.get_current()
+        persona_id = current_persona.id if current_persona else "default"
+        session_manager.create_session(persona_id, self.messages)
+        logger.info("创建新会话")
+    
+    def load_session(self, session_id: str) -> bool:
+        """加载指定会话"""
+        session = session_manager.load_session(session_id)
+        if session:
+            self.messages = session.messages
+            logger.info(f"加载会话: {session.name}")
+            return True
+        return False
+    
+    def get_sessions(self) -> list:
+        """获取所有会话列表"""
+        return session_manager.get_all_sessions()
