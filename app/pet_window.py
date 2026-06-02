@@ -326,132 +326,137 @@ class PetWindow(QWidget):
 
     def contextMenuEvent(self, event):
         """右键菜单"""
-        from PyQt5.QtWidgets import QMenu, QAction
-        from .themes import get_current_theme, get_all_themes, set_theme
+        try:
+            from PyQt5.QtWidgets import QMenu, QAction
+            from .themes import get_current_theme, get_all_themes, set_theme
 
-        theme = get_current_theme()
-        menu = QMenu(self)
-        menu.setStyleSheet(f"""
-            QMenu {{
-                background-color: {theme.bubble_bg};
-                border: 1.5px solid {theme.bubble_border};
-                border-radius: 12px;
-                padding: 6px;
-                font-family: 'Microsoft YaHei';
-                font-size: 13px;
-                color: {theme.text};
-            }}
-            QMenu::item {{
-                padding: 8px 24px 8px 12px;
-                border-radius: 8px;
-                margin: 2px 4px;
-            }}
-            QMenu::item:selected {{
-                background-color: {theme.accent_light};
-            }}
-            QMenu::separator {{
-                height: 1px;
-                background: {theme.bubble_border};
-                margin: 4px 8px;
-            }}
-            QMenu::item:disabled {{
-                color: {theme.text_secondary};
-            }}
-        """)
+            theme = get_current_theme()
+            menu = QMenu(self)
+            menu.setStyleSheet(f"""
+                QMenu {{
+                    background-color: {theme.bubble_bg};
+                    border: 1.5px solid {theme.bubble_border};
+                    border-radius: 12px;
+                    padding: 6px;
+                    font-family: 'Microsoft YaHei';
+                    font-size: 13px;
+                    color: {theme.text};
+                }}
+                QMenu::item {{
+                    padding: 8px 24px 8px 12px;
+                    border-radius: 8px;
+                    margin: 2px 4px;
+                }}
+                QMenu::item:selected {{
+                    background-color: {theme.accent_light};
+                }}
+                QMenu::separator {{
+                    height: 1px;
+                    background: {theme.bubble_border};
+                    margin: 4px 8px;
+                }}
+                QMenu::item:disabled {{
+                    color: {theme.text_secondary};
+                }}
+            """)
 
-        # 显示/隐藏聊天
-        toggle_action = QAction("💬  显示/隐藏聊天", self)
-        toggle_action.triggered.connect(self._toggle_chat)
-        menu.addAction(toggle_action)
+            # 显示/隐藏聊天
+            toggle_action = QAction("💬  显示/隐藏聊天", self)
+            toggle_action.triggered.connect(self._toggle_chat)
+            menu.addAction(toggle_action)
 
-        # 隐藏
-        hide_action = QAction("👋  隐藏小赫", self)
-        hide_action.triggered.connect(self._hide_all)
-        menu.addAction(hide_action)
+            # 隐藏
+            hide_action = QAction("👋  隐藏小赫", self)
+            hide_action.triggered.connect(self._hide_all)
+            menu.addAction(hide_action)
 
-        menu.addSeparator()
+            menu.addSeparator()
 
-        # 人格切换
-        personas = persona_manager.get_all()
-        if len(personas) > 1:
-            current = persona_manager.get_current()
-            persona_menu = menu.addMenu("🔄  切换人格")
-            for persona in personas:
-                action = QAction(persona.name, self)
+            # 人格切换
+            personas = persona_manager.get_all()
+            if len(personas) > 1:
+                current = persona_manager.get_current()
+                persona_menu = menu.addMenu("🔄  切换人格")
+                for persona in personas:
+                    action = QAction(persona.name, self)
+                    action.setCheckable(True)
+                    action.setChecked(current and persona.id == current.id)
+                    action.triggered.connect(lambda checked, pid=persona.id: self.switch_persona(pid))
+                    persona_menu.addAction(action)
+            else:
+                persona_menu = menu.addMenu("🔄  切换人格")
+                action = QAction(personas[0].name if personas else "默认", self)
                 action.setCheckable(True)
-                action.setChecked(current and persona.id == current.id)
-                action.triggered.connect(lambda checked, pid=persona.id: self.switch_persona(pid))
+                action.setChecked(True)
+                action.setEnabled(False)
                 persona_menu.addAction(action)
-        else:
-            persona_menu = menu.addMenu("🔄  切换人格")
-            action = QAction(personas[0].name if personas else "默认", self)
-            action.setCheckable(True)
-            action.setChecked(True)
-            action.setEnabled(False)
-            persona_menu.addAction(action)
 
-        # 皮肤切换
-        skin_menu = menu.addMenu("👗  切换皮肤")
-        for skin_name in self.SKINS:
-            action = QAction(skin_name, self)
-            action.setCheckable(True)
-            action.setChecked(skin_name == self._current_skin)
-            action.triggered.connect(lambda checked, n=skin_name: self.switch_skin(n))
-            skin_menu.addAction(action)
-
-        # 主题切换
-        theme_menu = menu.addMenu("🎨  切换主题")
-        for t in get_all_themes():
-            action = QAction(t.name, self)
-            action.setCheckable(True)
-            action.setChecked(t.id == theme.id)
-            action.triggered.connect(lambda checked, tid=t.id: set_theme(tid))
-            theme_menu.addAction(action)
-
-        menu.addSeparator()
-
-        # 会话管理
-        from .sessions import session_manager
-        session_menu = menu.addMenu("💬  会话管理")
-        
-        # 新建会话
-        new_session_action = QAction("📝  新建会话", self)
-        new_session_action.triggered.connect(self._on_new_session)
-        session_menu.addAction(new_session_action)
-        
-        session_menu.addSeparator()
-        
-        # 会话列表
-        sessions = session_manager.get_all_sessions()
-        if sessions:
-            current_session = session_manager.get_current()
-            for session in sessions[:10]:  # 最多显示 10 个
-                # 格式化时间
-                import time
-                time_str = time.strftime("%m-%d %H:%M", time.localtime(session.updated_at))
-                action = QAction(f"📌 {session.name[:20]}... ({time_str})", self)
+            # 皮肤切换
+            skin_menu = menu.addMenu("👗  切换皮肤")
+            for skin_name in self.SKINS:
+                action = QAction(skin_name, self)
                 action.setCheckable(True)
-                action.setChecked(current_session and session.id == current_session.id)
-                action.triggered.connect(lambda checked, sid=session.id: self._on_load_session(sid))
-                session_menu.addAction(action)
-        else:
-            no_session_action = QAction("暂无历史会话", self)
-            no_session_action.setEnabled(False)
-            session_menu.addAction(no_session_action)
+                action.setChecked(skin_name == self._current_skin)
+                action.triggered.connect(lambda checked, n=skin_name: self.switch_skin(n))
+                skin_menu.addAction(action)
 
-        menu.addSeparator()
+            # 主题切换
+            theme_menu = menu.addMenu("🎨  切换主题")
+            for t in get_all_themes():
+                action = QAction(t.name, self)
+                action.setCheckable(True)
+                action.setChecked(t.id == theme.id)
+                action.triggered.connect(lambda checked, tid=t.id: set_theme(tid))
+                theme_menu.addAction(action)
 
-        # 设置
-        settings_action = QAction("⚙️  设置", self)
-        settings_action.triggered.connect(self._open_persona_manager)
-        menu.addAction(settings_action)
+            menu.addSeparator()
 
-        # 退出
-        quit_action = QAction("❌  退出", self)
-        quit_action.triggered.connect(QApplication.quit)
-        menu.addAction(quit_action)
+            # 会话管理
+            from .sessions import session_manager
+            session_menu = menu.addMenu("💬  会话管理")
+            
+            # 新建会话
+            new_session_action = QAction("📝  新建会话", self)
+            new_session_action.triggered.connect(self._on_new_session)
+            session_menu.addAction(new_session_action)
+            
+            session_menu.addSeparator()
+            
+            # 会话列表
+            sessions = session_manager.get_all_sessions()
+            if sessions:
+                current_session = session_manager.get_current()
+                for session in sessions[:10]:  # 最多显示 10 个
+                    # 格式化时间
+                    import time
+                    time_str = time.strftime("%m-%d %H:%M", time.localtime(session.updated_at))
+                    action = QAction(f"📌 {session.name[:20]}... ({time_str})", self)
+                    action.setCheckable(True)
+                    action.setChecked(current_session and session.id == current_session.id)
+                    action.triggered.connect(lambda checked, sid=session.id: self._on_load_session(sid))
+                    session_menu.addAction(action)
+            else:
+                no_session_action = QAction("暂无历史会话", self)
+                no_session_action.setEnabled(False)
+                session_menu.addAction(no_session_action)
 
-        menu.exec_(event.globalPos())
+            menu.addSeparator()
+
+            # 设置
+            settings_action = QAction("⚙️  设置", self)
+            settings_action.triggered.connect(self._open_persona_manager)
+            menu.addAction(settings_action)
+
+            # 退出
+            quit_action = QAction("❌  退出", self)
+            quit_action.triggered.connect(QApplication.quit)
+            menu.addAction(quit_action)
+
+            menu.exec_(event.globalPos())
+        except Exception as e:
+            print(f"[Pet] 右键菜单错误: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _toggle_chat(self):
         pass
