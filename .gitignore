@@ -33,3 +33,11 @@ Desktop.ini
 # 临时文件
 *.tmp
 *.bak
+
+# PyInstaller
+*.spec.bak
+*.manifest
+*.exe
+
+# 用户偏好
+user_prefs.json
