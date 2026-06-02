@@ -9,6 +9,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 
 from .personas import Persona, persona_manager
+from .themes import get_current_theme
 
 
 class PersonaDialog(QDialog):
@@ -21,32 +22,36 @@ class PersonaDialog(QDialog):
         
         self.setWindowTitle("编辑人格" if self.is_edit else "添加新人格")
         self.setMinimumWidth(500)
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #FAFAFA;
-            }
-            QLabel {
+        
+        theme = get_current_theme()
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {theme.bubble_bg};
+            }}
+            QLabel {{
                 font-family: 'Microsoft YaHei';
                 font-size: 13px;
-            }
-            QLineEdit, QTextEdit, QComboBox {
+                color: {theme.text};
+            }}
+            QLineEdit, QTextEdit, QComboBox {{
                 font-family: 'Microsoft YaHei';
                 font-size: 13px;
                 padding: 8px;
-                border: 1px solid #D0D0D0;
+                border: 1px solid {theme.input_border};
                 border-radius: 6px;
-                background-color: white;
-            }
-            QLineEdit:focus, QTextEdit:focus {
-                border-color: #B088C0;
-            }
-            QPushButton {
+                background-color: {theme.input_bg};
+                color: {theme.text};
+            }}
+            QLineEdit:focus, QTextEdit:focus {{
+                border-color: {theme.send_btn};
+            }}
+            QPushButton {{
                 font-family: 'Microsoft YaHei';
                 font-size: 13px;
                 padding: 8px 20px;
                 border-radius: 6px;
                 border: none;
-            }
+            }}
         """)
         
         self._setup_ui()
@@ -141,14 +146,15 @@ class PersonaDialog(QDialog):
         skin_layout.addWidget(self.skin_input)
         
         browse_btn = QPushButton("浏览...")
-        browse_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #E8DEF8;
-                color: #2D2D2D;
-            }
-            QPushButton:hover {
-                background-color: #D0C0E0;
-            }
+        browse_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.accent_light};
+                color: {theme.text};
+            }}
+            QPushButton:hover {{
+                background-color: {theme.send_btn};
+                color: white;
+            }}
         """)
         browse_btn.clicked.connect(self._browse_skin)
         skin_layout.addWidget(browse_btn)
@@ -166,14 +172,15 @@ class PersonaDialog(QDialog):
         color_layout.addWidget(self.color_input)
         
         color_btn = QPushButton("选择...")
-        color_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #E8DEF8;
-                color: #2D2D2D;
-            }
-            QPushButton:hover {
-                background-color: #D0C0E0;
-            }
+        color_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.accent_light};
+                color: {theme.text};
+            }}
+            QPushButton:hover {{
+                background-color: {theme.send_btn};
+                color: white;
+            }}
         """)
         color_btn.clicked.connect(self._pick_color)
         color_layout.addWidget(color_btn)
@@ -192,7 +199,7 @@ class PersonaDialog(QDialog):
         
         # === 语音配置 ===
         voice_label = QLabel("🎤 语音配置")
-        voice_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #666; margin-top: 10px;")
+        voice_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {theme.text_secondary}; margin-top: 10px;")
         form.addRow(voice_label)
 
         # TTS 提供商
@@ -230,27 +237,28 @@ class PersonaDialog(QDialog):
         btn_layout.addStretch()
         
         cancel_btn = QPushButton("取消")
-        cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #E0E0E0;
-                color: #333;
-            }
-            QPushButton:hover {
-                background-color: #D0D0D0;
-            }
+        cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.input_border};
+                color: {theme.text};
+            }}
+            QPushButton:hover {{
+                background-color: {theme.send_btn};
+                color: white;
+            }}
         """)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
         
         save_btn = QPushButton("保存")
-        save_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #B088C0;
+        save_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.send_btn};
                 color: white;
-            }
-            QPushButton:hover {
-                background-color: #9868A8;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {theme.send_btn_hover};
+            }}
         """)
         save_btn.clicked.connect(self._save)
         btn_layout.addWidget(save_btn)
@@ -375,27 +383,30 @@ class PersonaListDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("人格管理")
         self.setMinimumSize(600, 400)
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #FAFAFA;
-            }
-            QListWidget {
+        
+        theme = get_current_theme()
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {theme.bubble_bg};
+            }}
+            QListWidget {{
                 font-family: 'Microsoft YaHei';
                 font-size: 13px;
-                border: 1px solid #D0D0D0;
+                border: 1px solid {theme.input_border};
                 border-radius: 6px;
-                background-color: white;
-            }
-            QListWidget::item {
+                background-color: {theme.input_bg};
+                color: {theme.text};
+            }}
+            QListWidget::item {{
                 padding: 10px;
-                border-bottom: 1px solid #EEE;
-            }
-            QListWidget::item:selected {
-                background-color: #E8DEF8;
-            }
-            QListWidget::item:hover {
-                background-color: #F0E6FF;
-            }
+                border-bottom: 1px solid {theme.bubble_border};
+            }}
+            QListWidget::item:selected {{
+                background-color: {theme.accent_light};
+            }}
+            QListWidget::item:hover {{
+                background-color: {theme.hermes_msg};
+            }}
         """)
         
         self._setup_ui()
@@ -404,9 +415,11 @@ class PersonaListDialog(QDialog):
     def _setup_ui(self):
         layout = QVBoxLayout(self)
         
+        theme = get_current_theme()
+        
         # 标题
         title = QLabel("人格列表")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #333;")
+        title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {theme.text};")
         layout.addWidget(title)
         
         # 列表
@@ -419,28 +432,29 @@ class PersonaListDialog(QDialog):
         btn_layout = QHBoxLayout()
         
         add_btn = QPushButton("添加新人格")
-        add_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #B088C0;
+        add_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.send_btn};
                 color: white;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #9868A8;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {theme.send_btn_hover};
+            }}
         """)
         add_btn.clicked.connect(self._add_persona)
         btn_layout.addWidget(add_btn)
         
         edit_btn = QPushButton("编辑")
-        edit_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #E8DEF8;
-                color: #2D2D2D;
-            }
-            QPushButton:hover {
-                background-color: #D0C0E0;
-            }
+        edit_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.accent_light};
+                color: {theme.text};
+            }}
+            QPushButton:hover {{
+                background-color: {theme.send_btn};
+                color: white;
+            }}
         """)
         edit_btn.clicked.connect(self._edit_persona)
         btn_layout.addWidget(edit_btn)
@@ -461,14 +475,15 @@ class PersonaListDialog(QDialog):
         btn_layout.addStretch()
         
         close_btn = QPushButton("关闭")
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #E0E0E0;
-                color: #333;
-            }
-            QPushButton:hover {
-                background-color: #D0D0D0;
-            }
+        close_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme.input_border};
+                color: {theme.text};
+            }}
+            QPushButton:hover {{
+                background-color: {theme.send_btn};
+                color: white;
+            }}
         """)
         close_btn.clicked.connect(self.close)
         btn_layout.addWidget(close_btn)

@@ -7,7 +7,7 @@
       "api_endpoint": "http://localhost:8642/v1/chat/completions",
       "api_key": "",
       "model_name": "hermes-agent",
-      "skin": "hamster.png",
+      "skin": "angel_sprite.png",
       "system_prompt": "",
       "theme_color": "#B088C0",
       "description": "",

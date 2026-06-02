@@ -1,0 +1,21 @@
+{
+  "id": "1780397187095",
+  "name": "你好",
+  "persona_id": "xiaohe",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一个住在用户桌面的宠物精灵。对话在桌面气泡中显示，所以回复要简短。不要使用 Markdown 格式，用纯文本。\n当前人格: 小赫"
+    },
+    {
+      "role": "user",
+      "content": "你好"
+    },
+    {
+      "role": "assistant",
+      "content": "你好呀～有什么需要我帮忙的吗？"
+    }
+  ],
+  "created_at": 1780397187.095253,
+  "updated_at": 1780397211.1156054
+}
