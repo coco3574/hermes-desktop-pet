@@ -43,9 +43,10 @@ class StreamWorker(QThread):
             model_name = config.MODEL_NAME
         
         headers = {
-            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         payload = {
             "model": model_name,
             "messages": self.messages,

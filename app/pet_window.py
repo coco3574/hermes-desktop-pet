@@ -3,6 +3,8 @@
 import os
 import math
 import random
+from typing import Optional
+
 from PyQt5.QtCore import Qt, QPoint, QTimer, QRect, QPointF, pyqtSignal
 from PyQt5.QtGui import (
     QPixmap, QPainter, QColor, QFont, QPen, QBrush,
@@ -38,7 +40,7 @@ class PetWindow(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
 
         # 拖拽状态
-        self._drag_pos: QPoint | None = None
+        self._drag_pos: Optional[QPoint] = None
         self._drag_moved = False
 
         # 从 persona_manager 加载当前人格
@@ -48,7 +50,7 @@ class PetWindow(QWidget):
         self._theme_color = current_persona.theme_color if current_persona else "#B088C0"
 
         # 加载角色图片
-        self._pixmap: QPixmap | None = None
+        self._pixmap: Optional[QPixmap] = None
         self._load_character()
 
         # 动画参数
@@ -256,6 +258,19 @@ class PetWindow(QWidget):
             self._current_skin = skin_name
             self._load_character()
             self.update()
+            
+            # 同步更新 persona_manager 中当前人格的 skin
+            current_persona = persona_manager.get_current()
+            if current_persona:
+                # 找到对应的文件名
+                filename = self.SKINS.get(skin_name, skin_name)
+                current_persona.skin = filename
+                persona_manager._save()
+            
+            # 发送信号通知聊天窗口更新头像
+            if current_persona:
+                self.persona_changed.emit(current_persona.id)
+            
             print(f"[Pet] 切换皮肤: {skin_name}")
     
     def switch_persona(self, persona_id: str):
@@ -288,6 +303,9 @@ class PetWindow(QWidget):
             self._drag_pos = event.globalPos() - self.frameGeometry().topLeft()
             self._drag_moved = False
             event.accept()
+        elif event.button() == Qt.RightButton:
+            # 右键不处理拖拽，让 contextMenuEvent 触发
+            pass
 
     def mouseMoveEvent(self, event):
         if self._drag_pos and event.buttons() & Qt.LeftButton:
@@ -307,53 +325,73 @@ class PetWindow(QWidget):
         self.show_greeting()
 
     def contextMenuEvent(self, event):
+        """右键菜单"""
+        from PyQt5.QtWidgets import QMenu, QAction
+        from .themes import get_current_theme, get_all_themes, set_theme
+
+        theme = get_current_theme()
         menu = QMenu(self)
-        menu.setStyleSheet("""
-            QMenu {
-                background-color: #FFF;
-                border: 1px solid #D0C0E0;
-                border-radius: 6px;
-                padding: 4px;
+        menu.setStyleSheet(f"""
+            QMenu {{
+                background-color: {theme.bubble_bg};
+                border: 1.5px solid {theme.bubble_border};
+                border-radius: 12px;
+                padding: 6px;
                 font-family: 'Microsoft YaHei';
-                font-size: 12px;
-            }
-            QMenu::item { padding: 6px 20px; border-radius: 4px; }
-            QMenu::item:selected { background-color: #E8DEF8; }
+                font-size: 13px;
+                color: {theme.text};
+            }}
+            QMenu::item {{
+                padding: 8px 24px 8px 12px;
+                border-radius: 8px;
+                margin: 2px 4px;
+            }}
+            QMenu::item:selected {{
+                background-color: {theme.accent_light};
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background: {theme.bubble_border};
+                margin: 4px 8px;
+            }}
+            QMenu::item:disabled {{
+                color: {theme.text_secondary};
+            }}
         """)
 
-        toggle_action = QAction("显示/隐藏聊天", self)
+        # 显示/隐藏聊天
+        toggle_action = QAction("💬  显示/隐藏聊天", self)
         toggle_action.triggered.connect(self._toggle_chat)
         menu.addAction(toggle_action)
 
-        hide_action = QAction("隐藏小赫", self)
+        # 隐藏
+        hide_action = QAction("👋  隐藏小赫", self)
         hide_action.triggered.connect(self._hide_all)
         menu.addAction(hide_action)
 
         menu.addSeparator()
 
-        # 人格切换子菜单（新功能）
-        persona_menu = menu.addMenu("切换人格")
-        current_persona = persona_manager.get_current()
-        
-        for persona in persona_manager.get_all():
-            action = QAction(persona.name, self)
+        # 人格切换
+        personas = persona_manager.get_all()
+        if len(personas) > 1:
+            current = persona_manager.get_current()
+            persona_menu = menu.addMenu("🔄  切换人格")
+            for persona in personas:
+                action = QAction(persona.name, self)
+                action.setCheckable(True)
+                action.setChecked(current and persona.id == current.id)
+                action.triggered.connect(lambda checked, pid=persona.id: self.switch_persona(pid))
+                persona_menu.addAction(action)
+        else:
+            persona_menu = menu.addMenu("🔄  切换人格")
+            action = QAction(personas[0].name if personas else "默认", self)
             action.setCheckable(True)
-            action.setChecked(current_persona and persona.id == current_persona.id)
-            action.setToolTip(persona.description or persona.model_name)
-            action.triggered.connect(lambda checked, pid=persona.id: self.switch_persona(pid))
+            action.setChecked(True)
+            action.setEnabled(False)
             persona_menu.addAction(action)
-        
-        persona_menu.addSeparator()
-        
-        # 管理人格选项
-        manage_action = QAction("管理人格...", self)
-        manage_action.triggered.connect(self._open_persona_manager)
-        persona_menu.addAction(manage_action)
 
-        menu.addSeparator()
-
-        # 皮肤切换子菜单（保留旧版兼容）
-        skin_menu = menu.addMenu("切换皮肤")
+        # 皮肤切换
+        skin_menu = menu.addMenu("👗  切换皮肤")
         for skin_name in self.SKINS:
             action = QAction(skin_name, self)
             action.setCheckable(True)
@@ -361,9 +399,24 @@ class PetWindow(QWidget):
             action.triggered.connect(lambda checked, n=skin_name: self.switch_skin(n))
             skin_menu.addAction(action)
 
+        # 主题切换
+        theme_menu = menu.addMenu("🎨  切换主题")
+        for t in get_all_themes():
+            action = QAction(t.name, self)
+            action.setCheckable(True)
+            action.setChecked(t.id == theme.id)
+            action.triggered.connect(lambda checked, tid=t.id: set_theme(tid))
+            theme_menu.addAction(action)
+
         menu.addSeparator()
 
-        quit_action = QAction("退出", self)
+        # 设置
+        settings_action = QAction("⚙️  设置", self)
+        settings_action.triggered.connect(self._open_persona_manager)
+        menu.addAction(settings_action)
+
+        # 退出
+        quit_action = QAction("❌  退出", self)
         quit_action.triggered.connect(QApplication.quit)
         menu.addAction(quit_action)
 
